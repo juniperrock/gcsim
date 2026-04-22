@@ -7,6 +7,7 @@ import (
 
 const (
 	TestCharDoNotUse Char = iota + TravelerDelim + 1
+	Aino
 	Albedo
 	Alhaitham
 	Aloy
@@ -112,6 +113,10 @@ const (
 )
 
 func init() {
+	charNames[Aino] = "aino"
+	charPrettyName[Aino] = "Aino"
+	CharKeyToEle[Aino] = attributes.Hydro
+
 	charNames[Albedo] = "albedo"
 	charPrettyName[Albedo] = "Albedo"
 	CharKeyToEle[Albedo] = attributes.Geo
