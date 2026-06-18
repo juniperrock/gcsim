@@ -41,6 +41,7 @@ var setNames = []string{
 	"blizzardstrayer",
 	"bloodstainedchivalry",
 	"braveheart",
+	"celestialgift",
 	"crimsonwitchofflames",
 	"deepwoodmemories",
 	"defenderswill",
@@ -104,6 +105,7 @@ const (
 	BlizzardStrayer
 	BloodstainedChivalry
 	BraveHeart
+	CelestialGift
 	CrimsonWitchOfFlames
 	DeepwoodMemories
 	DefendersWill
