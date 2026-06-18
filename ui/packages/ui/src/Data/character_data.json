@@ -214,6 +214,11 @@
     "element": "cryo",
     "weapon_class": "sword"
   },
+  "linnea": {
+    "rarity": 5,
+    "element": "geo",
+    "weapon_class": "bow"
+  },
   "lisa": {
     "rarity": 4,
     "element": "electro",

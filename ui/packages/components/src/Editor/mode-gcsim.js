@@ -178,6 +178,7 @@ ace.define(
         'lauma',
         'layla',
         'lesserlordkusanali',
+        'linnea',
         'lisa',
         'liuyun',
         'lumine-anemo',
