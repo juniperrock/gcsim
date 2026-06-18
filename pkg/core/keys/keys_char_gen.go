@@ -73,6 +73,7 @@ const (
 	Mualani
 	Nahida
 	Navia
+	Nefer
 	Neuvillette
 	Nilou
 	Ningguang
@@ -376,6 +377,10 @@ func init() {
 	charNames[Navia] = "navia"
 	charPrettyName[Navia] = "Navia"
 	CharKeyToEle[Navia] = attributes.Geo
+
+	charNames[Nefer] = "nefer"
+	charPrettyName[Nefer] = "Nefer"
+	CharKeyToEle[Nefer] = attributes.Dendro
 
 	charNames[Neuvillette] = "neuvillette"
 	charPrettyName[Neuvillette] = "Neuvillette"
