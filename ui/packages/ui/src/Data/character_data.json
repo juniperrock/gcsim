@@ -249,6 +249,11 @@
     "element": "hydro",
     "weapon_class": "catalyst"
   },
+  "nefer": {
+    "rarity": 5,
+    "element": "dendro",
+    "weapon_class": "catalyst"
+  },
   "ningguang": {
     "rarity": 4,
     "element": "geo",

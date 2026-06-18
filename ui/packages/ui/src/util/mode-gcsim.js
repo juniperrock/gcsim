@@ -205,6 +205,7 @@ ace.define(
         'mualani',
         'nahida',
         'navia',
+        'nefer',
         'neuv',
         'neuvillette',
         'nilou',
