@@ -10,6 +10,7 @@ import (
 var incompleteCharacters = []keys.Char{
 	keys.TestCharDoNotUse,
 	keys.Columbina,
+	keys.Linnea,
 }
 
 func IsCharacterComplete(char keys.Char) bool {
