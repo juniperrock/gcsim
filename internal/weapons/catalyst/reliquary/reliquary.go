@@ -39,8 +39,7 @@ func NewWeapon(c *core.Core, char *character.CharWrapper, p info.WeaponProfile) 
 	})
 
 	secretoflies := func(args ...any) {
-		atk := args[1].(*info.AttackEvent)
-		if atk.Info.ActorIndex != char.Index() {
+		if c.Player.Active() != char.Index() {
 			return
 		}
 
