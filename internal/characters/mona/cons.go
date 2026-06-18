@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	c2icdkey = "mona-c2-icd"
-	c4key    = "mona-c4"
-	c6Key    = "mona-c6"
+	c2icdkey                = "mona-c2-icd"
+	c2HexereiPostBurstCAKey = "mona-c2-hexerei-post-burst-ca"
+	c4key                   = "mona-c4"
+	c6Key                   = "mona-c6"
 )
 
 // C1:
@@ -35,43 +36,47 @@ func (c *char) c1() {
 		if !ok {
 			return
 		}
-		if !t.StatusIsActive(bubbleKey) && !t.StatusIsActive(omenKey) {
+		if !t.StatusIsActive(omenKey) {
 			return
 		}
-		// add c1 to all party members, delay by 1, because:
+
+		atk := args[1].(*info.AttackEvent)
+
+		char := c.Core.Player.Chars()[atk.Info.ActorIndex]
+
+		// add c1 to party member that triggered the effect, delay by 1, because:
 		// "This bonus does not apply in the triggering attack nor from the resulting Hydro DMG dealt by Illusory Bubble in Stellaris Phantasm regardless if they were from resulting reactions."
-		for _, x := range c.Core.Player.Chars() {
-			char := x
-			c.Core.Tasks.Add(func() {
-				// TODO: "Vaporize DMG increases by 15%." should be getting snapshot, see https://library.keqingmains.com/evidence/characters/hydro/mona#mona-c1-snapshot-for-vape
-				// requires ReactBonusMod refactor
-				char.AddReactBonusMod(character.ReactBonusMod{
-					Base: modifier.NewBase("mona-c1", 8*60),
-					Amount: func(ai info.AttackInfo) float64 {
-						// doesn't work off-field
-						if c.Core.Player.Active() != char.Index() {
-							return 0
-						}
+		c.Core.Tasks.Add(func() {
+			char.AddReactBonusMod(character.ReactBonusMod{
+				Base: modifier.NewBase("mona-c1", 8*60),
+				Amount: func(ai info.AttackInfo) float64 {
+					m := 0.15
 
-						switch ai.AttackTag {
-						// Hydro Swirl DMG increases by 15%.
-						// Electro-Charged DMG increases by 15%.
-						// Lunar-Charged DMG increases by 15%.
-						case attacks.AttackTagSwirlHydro, attacks.AttackTagECDamage, attacks.AttackTagReactionLunarCharge, attacks.AttackTagDirectLunarCharged:
-							return 0.15
-						}
+					// Hexerei passive
+					// Additionally, when your off-field party members trigger the above effect, the DMG Bonus to the above Hydro-related Elemental Reactions is enhanced to 160% of its original effect.
+					if c.IsHexerei && c.Core.Player.Active() != char.Index() {
+						m = 0.24
+					}
 
-						// Vaporize DMG increases by 15%.
-						// the only way Hydro Swirl can vape is via an AoE Hydro Swirl which doesn't do damage anyways, so this is fine
-						if ai.Amped {
-							return 0.15
-						}
+					switch ai.AttackTag {
+					// Hydro Swirl DMG increases by 15%.
+					// Electro-Charged DMG increases by 15%.
+					// Lunar-Charged DMG increases by 15%.
+					case attacks.AttackTagSwirlHydro, attacks.AttackTagECDamage, attacks.AttackTagReactionLunarCharge, attacks.AttackTagDirectLunarCharged:
+						return m
+					}
 
-						return 0
-					},
-				})
-			}, 1)
-		}
+					// Vaporize DMG increases by 15%.
+					// the only way Hydro Swirl can vape is via an AoE Hydro Swirl which doesn't do damage anyways, so this is fine
+
+					if ai.Amped && ai.AmpType == info.ReactionTypeVaporize {
+						return m
+					}
+
+					return 0
+				},
+			})
+		}, 1)
 	}, "mona-c1-check")
 }
 
@@ -95,13 +100,13 @@ func (c *char) c2() {
 		if atk.Info.AttackTag != attacks.AttackTagNormal {
 			return
 		}
-
-		if c.Core.Rand.Float64() > .2 {
+		if c.Core.Rand.Float64() > .2 && !c.StatusIsActive(c2HexereiPostBurstCAKey) {
 			return
 		}
 		if c.StatusIsActive(c2icdkey) {
 			return
 		}
+		c.DeleteStatus(c2HexereiPostBurstCAKey)
 		c.AddStatus(c2icdkey, 5*60, true)
 
 		c.QueueCharTask(func() {
@@ -116,9 +121,28 @@ func (c *char) c2() {
 				Durability: 25,
 				Mult:       charge[c.TalentLvlAttack()],
 			}
-			c.Core.QueueAttack(ai, combat.NewCircleHitOnTarget(trg, nil, 3), 0, 0)
+			c.Core.QueueAttack(ai, combat.NewCircleHitOnTarget(trg, nil, 3), 0, 0, c.astralGlowGainCB, c.omenRefreshCB)
 		}, .7*60)
 	}, "mona-c2-followup")
+}
+
+func (c *char) c2HexereiCB(a info.AttackCB) {
+	if !c.IsHexerei {
+		return
+	}
+
+	m := make([]float64, attributes.EndStatType)
+	m[attributes.EM] = 80
+
+	for _, char := range c.Core.Player.Chars() {
+		char.AddStatMod(character.StatMod{
+			Base:         modifier.NewBase("mona-hexerei-c2-em", 60*8),
+			AffectedStat: attributes.EM,
+			Amount: func() []float64 {
+				return m
+			},
+		})
+	}
 }
 
 // C4:
@@ -134,6 +158,10 @@ func (c *char) c4() {
 				x, ok := t.(*enemy.Enemy)
 				if !ok {
 					return nil
+				}
+
+				if c.IsHexerei && char.IsHexerei {
+					m[attributes.CD] = 0.15
 				}
 				// ok only if either bubble or omen is present
 				if x.StatusIsActive(bubbleKey) || x.StatusIsActive(omenKey) {
@@ -186,8 +214,11 @@ func (c *char) c6(src int) func() {
 		if c.Core.Player.Active() != c.Index() {
 			return
 		}
-		// do nothing if we aren't dashing anymore
-		if c.Core.Player.CurrentState() != action.DashState {
+		// do nothing if we aren't dashing anymore and we aren't hexerei and enemy with omen is nearby
+		isDashing := c.Core.Player.CurrentState() == action.DashState
+		isHexAndOmen := c.IsHexerei && c.omenIsNearby()
+
+		if !isDashing && !isHexAndOmen {
 			return
 		}
 
@@ -215,6 +246,54 @@ func (c *char) c6(src int) func() {
 		// queue up another stack and buff refresh in 1s
 		c.Core.Tasks.Add(c.c6(src), 60)
 	}
+}
+
+func (c *char) c6Init() {
+	c.Core.Events.Subscribe(event.OnCharacterSwap, func(args ...any) {
+		if !c.IsHexerei {
+			return
+		}
+
+		if c.Core.Player.Active() != c.Index() {
+			return
+		}
+
+		t, ok := args[0].(enemy.Enemy)
+
+		if ok {
+			return
+		}
+
+		if t.StatusIsActive(omenKey) || t.StatusIsActive(bubbleKey) {
+			c.Core.Tasks.Add(c.c6(c.Core.F), 60)
+		}
+	}, "mona-c6-init")
+}
+
+func (c *char) c6ChargeAttackInit() {
+	if !c.IsHexerei {
+		return
+	}
+
+	c6HexCABuff := func(args ...any) {
+		atk := args[1].(*info.AttackEvent)
+		t, ok := args[0].(*enemy.Enemy)
+		if !ok {
+			return
+		}
+		if atk.Info.ActorIndex != c.Index() {
+			return
+		}
+		if atk.Info.AttackTag != attacks.AttackTagExtra {
+			return
+		}
+		if !t.StatusIsActive(omenKey) && !t.StatusIsActive(bubbleKey) {
+			return
+		}
+		atk.Info.Mult *= 2
+	}
+
+	c.Core.Events.Subscribe(event.OnEnemyHit, c6HexCABuff, "mona-hexerei-c6-ca-buff-%v")
 }
 
 func (c *char) makeC6CAResetCB() info.AttackCBFunc {

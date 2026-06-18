@@ -8,7 +8,13 @@ import (
 	"github.com/genshinsim/gcsim/pkg/core/glog"
 	"github.com/genshinsim/gcsim/pkg/core/info"
 	"github.com/genshinsim/gcsim/pkg/core/player/character"
+	"github.com/genshinsim/gcsim/pkg/enemy"
 	"github.com/genshinsim/gcsim/pkg/modifier"
+)
+
+const (
+	astralGlowICDKey  = "mona-astral-glow-icd"
+	omenRefreshICDKey = "mona-omen-refresh-icd"
 )
 
 // After she has used Illusory Torrent for 2s, if there are any opponents nearby,
@@ -70,4 +76,118 @@ func (c *char) a4() {
 	}
 	c.a4Stats[attributes.HydroP] = 0.2 * c.NonExtraStat(attributes.ER)
 	c.QueueCharTask(c.a4, 60)
+}
+
+func (c *char) astralGlowGainCB(a info.AttackCB) {
+	if !c.IsHexerei {
+		return
+	}
+
+	if c.Core.Player.GetHexereiCount() < 2 {
+		return
+	}
+
+	if c.StatusIsActive(astralGlowICDKey) {
+		return
+	}
+
+	c.AddStatus(astralGlowICDKey, 0.1*60, false) // 0.1s ICD
+
+	if c.astralGlowStacks[0] < 3 {
+		c.astralGlowStacks[0]++
+	}
+
+	c.astralGlowStacks[1] = c.Core.F + 60*8
+
+	c.Core.Log.NewEvent("mona hexerei proc: astral glow", glog.LogCharacterEvent, c.Index()).
+		Write("expiry:", c.Core.F+60*8)
+
+	c.Core.Tasks.Add(c.removeAstralGlowStack, 60*8)
+}
+
+func (c *char) omenRefreshCB(a info.AttackCB) {
+	if !c.IsHexerei {
+		return
+	}
+
+	if c.Core.Player.GetHexereiCount() < 2 {
+		return
+	}
+	t, ok := a.Target.(*enemy.Enemy)
+
+	if !ok {
+		return
+	}
+
+	if !t.StatusIsActive(omenKey) {
+		return
+	}
+
+	omenRefreshCount := t.GetTag(omenKey)
+
+	if omenRefreshCount < 0 {
+		return
+	}
+
+	if c.StatusIsActive(omenRefreshICDKey) {
+		return
+	}
+
+	t.SetTag(omenKey, omenRefreshCount-1)
+
+	if omenRefreshCount-1 < 0 {
+		t.RemoveTag(omenKey)
+	}
+
+	c.AddStatus(omenRefreshICDKey, 0.5*60, false) // 0.5s ICD
+
+	t.Core.Status.Extend(omenKey, 60*2)
+
+	omenRefreshCount++
+
+	c.Core.Log.NewEvent("mona hexerei proc: omen refresh", glog.LogCharacterEvent, c.Index()).
+		Write("refreshCount", omenRefreshCount)
+}
+
+func (c *char) hexInit() {
+	if !c.IsHexerei {
+		return
+	}
+
+	if c.Core.Player.GetHexereiCount() < 2 {
+		return
+	}
+
+	c.astralGlowStacks = [2]int{0, 0}
+
+	for _, char := range c.Core.Player.Chars() {
+		if char.Index() == c.Index() {
+			continue
+		}
+
+		char.AddReactBonusMod(character.ReactBonusMod{
+			Base: modifier.NewBase("mona-hexerei-astral-glow-vaporize", -1),
+			Amount: func(ai info.AttackInfo) float64 {
+				m := 0.05 * float64(c.astralGlowStacks[0])
+
+				if ai.Amped && ai.AmpType == info.ReactionTypeVaporize {
+					c.astralGlowStacks[0] = 0 // clear all stacks
+					return m
+				}
+
+				return 0
+			},
+		})
+	}
+}
+
+func (c *char) removeAstralGlowStack() {
+	if c.astralGlowStacks[0] == 0 {
+		return
+	}
+
+	if c.Core.F >= c.astralGlowStacks[1] {
+		c.astralGlowStacks[0] = 0
+		c.Core.Log.NewEvent("mona hexerei expired: astral glow", glog.LogCharacterEvent, c.Index())
+	}
 }
